@@ -44,20 +44,24 @@ from car_racer.visualize import (
     ACTION_NAMES
 )
 
-def play_manual_mode(fps=25):
+from car_racer.tracks.registry import list_tracks
+
+def play_manual_mode(fps=25, track="circle"):
     """
     Allows the human user to drive the car with arrow keys to experience the physics.
     Controls:
         Left Arrow: Steer Left
         Up / Down: Keep Straight
         Right Arrow: Steer Right
+        T Key: Cycle to next track layout
     """
     import pygame
-    env = MiniRacer(seed=None)
+    current_track = track
+    env = MiniRacer(track=current_track, seed=None)
     viewer = PygameCarRacerViewer(scale=16, fps=fps, show_vae=False)
 
     print("\n--- Manual Car Racing Mode ---")
-    print("Controls: Left Arrow (Steer Left), Up Arrow (Straight), Right Arrow (Steer Right)")
+    print("Controls: Left/Right Arrow (Steer), Up Arrow (Straight), T (Cycle Track)")
     print("Close window to exit.")
 
     obs = env.reset()
@@ -70,6 +74,14 @@ def play_manual_mode(fps=25):
             if event.type == pygame.QUIT:
                 viewer.close()
                 return
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_t:
+                tracks = list_tracks()
+                idx = tracks.index(current_track) if current_track in tracks else 0
+                current_track = tracks[(idx + 1) % len(tracks)]
+                env = MiniRacer(track=current_track, seed=None)
+                obs = env.reset()
+                cum_score = 0.0
+                print(f"[Manual Mode] Switched track to: {current_track.upper()} (T key)")
 
         keys = pygame.key.get_pressed()
         if keys[pygame.K_LEFT]:
@@ -97,7 +109,7 @@ def play_manual_mode(fps=25):
     viewer.close()
 
 
-def show_learning_progression(controller, vae, fps=25):
+def show_learning_progression(controller, vae, fps=25, track="circle"):
     """
     Shows a 3-stage demonstration of how the car races during learning:
     Stage 1: Gen 0 (Untrained - pins to kerb)
@@ -105,7 +117,7 @@ def show_learning_progression(controller, vae, fps=25):
     Stage 3: Gen 20 (Dream-trained - smooth racing)
     """
     print("\n" + "=" * 60)
-    print(" SHOWING CAR RACING EVOLUTION ACROSS LEARNING STAGES")
+    print(f" SHOWING CAR RACING EVOLUTION ACROSS LEARNING STAGES (Track: {track.upper()})")
     print("=" * 60)
 
     stages = [
@@ -117,7 +129,7 @@ def show_learning_progression(controller, vae, fps=25):
     for title, params in stages:
         print(f"\n>>> Now racing: {title}")
         test_c = Controller(params=params)
-        env = MiniRacer(seed=1001)
+        env = MiniRacer(track=track, seed=1001)
         viewer = PygameCarRacerViewer(scale=16, fps=fps, show_vae=(vae is not None))
 
         obs = env.reset()
@@ -153,9 +165,10 @@ def show_learning_progression(controller, vae, fps=25):
 
 def main():
     parser = argparse.ArgumentParser(description="Live Visualizer for Car Racing")
-    parser.add_argument("--mode", type=str, choices=["inference", "learning", "dream", "manual", "gif"],
+    parser.add_argument("--mode", type=str, choices=["inference", "learning", "dream", "manual", "gif", "benchmark"],
                         default="inference",
-                        help="Mode: 'inference' (live race), 'learning' (compare learning stages), 'dream' (M's imagination), 'manual' (drive yourself), 'gif' (export animation)")
+                        help="Mode: 'inference' (live race), 'learning' (compare learning stages), 'dream' (M's imagination), 'manual' (drive yourself), 'gif' (export animation), 'benchmark' (cross-track evaluation)")
+    parser.add_argument("--track", type=str, default="circle", help="Track name: circle, oval, figure8, s_curve")
     parser.add_argument("--seed", type=int, default=1001, help="Environment seed")
     parser.add_argument("--fps", type=int, default=25, help="Playback speed FPS")
     parser.add_argument("--checkpoint-dir", type=str, default=Config.CHECKPOINT_DIR, help="Directory containing model checkpoints")
@@ -179,9 +192,12 @@ def main():
         print("[Notice] No trained controller checkpoint found. Using default parameters.")
 
     if args.mode == "manual":
-        play_manual_mode(fps=args.fps)
+        play_manual_mode(fps=args.fps, track=args.track)
     elif args.mode == "learning":
-        show_learning_progression(controller, vae, fps=args.fps)
+        show_learning_progression(controller, vae, fps=args.fps, track=args.track)
+    elif args.mode == "benchmark":
+        from car_racer.benchmark import run_cross_track_benchmark
+        run_cross_track_benchmark(controller=controller, vae=vae, episodes_per_track=5)
     elif args.mode == "dream":
         mdn = MDNRNN().to(Config.DEVICE)
         mdn_file = os.path.join(args.checkpoint_dir, "mdn.pt")
@@ -197,9 +213,9 @@ def main():
         if vae is None:
             print("[Warning] No VAE loaded, initializing default VAE for GIF reconstruction.")
             vae = ConvVAE().to(Config.DEVICE)
-        save_racing_gif(controller, vae, output_path=args.gif_out, seed=args.seed)
+        save_racing_gif(controller, vae, output_path=args.gif_out, seed=args.seed, track=args.track)
     else:  # inference
-        run_inference_episode(controller=controller, vae=vae, seed=args.seed, fps=args.fps)
+        run_inference_episode(controller=controller, vae=vae, seed=args.seed, fps=args.fps, track=args.track)
 
 
 if __name__ == "__main__":

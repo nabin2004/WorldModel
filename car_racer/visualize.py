@@ -32,7 +32,7 @@ from car_racer.models.controller import Controller
 ACTION_NAMES = {0: "LEFT ◄", 1: "STRAIGHT ▲", 2: "RIGHT ►"}
 ACTION_COLORS = {0: (220, 80, 50), 1: (50, 180, 80), 2: (50, 120, 220)}
 
-def create_hud_overlay(img_rgb, step, reward, cumulative_score, action, d, phi, direction, mode="Autonomous"):
+def create_hud_overlay(img_rgb, step, reward, cumulative_score, action, d, phi, direction, mode="Autonomous", track_name="circle"):
     """
     Renders high-contrast telemetry text onto an RGB image.
     img_rgb: (H, W, 3) in uint8 [0, 255]
@@ -48,10 +48,10 @@ def create_hud_overlay(img_rgb, step, reward, cumulative_score, action, d, phi, 
         draw.rectangle([0, 0, img_rgb.shape[1], panel_h], fill=(20, 24, 28))
 
         # Text information
-        dir_str = "Clockwise (CW)" if direction > 0 else "Counter-CW (CCW)"
+        dir_str = "CW" if direction > 0 else "CCW"
         act_str = ACTION_NAMES.get(action, "UNKNOWN")
 
-        line1 = f"Mode: {mode} | Step: {step}/150 | Score: {cumulative_score:.1f}"
+        line1 = f"[{mode}] Track: {track_name.upper()} | Step: {step}/150 | Score: {cumulative_score:.1f}"
         line2 = f"Action: {act_str} | Step Reward: {reward:+.2f}"
         line3 = f"Dev (d): {d:+.2f} | Steering: {phi:+.2f} | Dir: {dir_str}"
 
@@ -97,10 +97,13 @@ class PygameCarRacerViewer:
     def draw_frame(self, real_obs, recon_obs=None, info=None, dream_obs=None):
         import pygame
 
+        pressed_keys = []
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit(0)
+            elif event.type == pygame.KEYDOWN:
+                pressed_keys.append(event.key)
 
         self.screen.fill((25, 27, 31))
 
@@ -134,16 +137,17 @@ class PygameCarRacerViewer:
             phi = info.get("phi", 0.0)
             direction = info.get("direction", 1)
             mode = info.get("mode", "Autonomous")
+            track_name = str(info.get("track", "circle")).upper()
 
-            dir_text = "CW (Clockwise)" if direction > 0 else "CCW (Counter-CW)"
+            dir_text = "CW" if direction > 0 else "CCW"
             action_text = ACTION_NAMES.get(action, "UNKNOWN")
 
             # HUD Background card
             pygame.draw.rect(self.screen, (35, 38, 44), (10, 8, self.width - 20, self.hud_height - 15), border_radius=6)
 
-            t_mode = self.font_large.render(f"[{mode} Mode]  Step: {step}/150  |  Total Score: {score:.1f}", True, (255, 255, 255))
-            t_act = self.font.render(f"Steering Action: {action_text}   (Reward: {reward:+.2f})", True, (255, 215, 0))
-            t_tel = self.font.render(f"Distance to Center: {d:+.2f}  |  Angle: {phi:+.2f} rad  |  Lap Dir: {dir_text}", True, (170, 215, 255))
+            t_mode = self.font_large.render(f"[{mode}]  Track: {track_name}  Step: {step}/150  |  Score: {score:.1f}", True, (255, 255, 255))
+            t_act = self.font.render(f"Steering: {action_text}  (Reward: {reward:+.2f})  |  [T] Cycle Track", True, (255, 215, 0))
+            t_tel = self.font.render(f"Centerline (d): {d:+.2f}  |  Angle: {phi:+.2f} rad  |  Dir: {dir_text}", True, (170, 215, 255))
 
             self.screen.blit(t_mode, (22, 14))
             self.screen.blit(t_act, (22, 38))
@@ -151,18 +155,24 @@ class PygameCarRacerViewer:
 
         pygame.display.flip()
         self.clock.tick(self.fps)
+        return pressed_keys
 
     def close(self):
         import pygame
         pygame.quit()
 
 
-def run_inference_episode(controller=None, vae=None, seed=None, fps=25, show_vae=True, max_steps=150):
+def run_inference_episode(controller=None, vae=None, seed=None, fps=25, show_vae=True, max_steps=150, track="circle"):
     """
     Runs a single full episode with real-time Pygame visualization.
     If controller is None, uses an untrained / random policy.
+    Supports cycling tracks live at runtime with the 'T' key.
     """
-    env = MiniRacer(seed=seed)
+    import pygame
+    from car_racer.tracks.registry import list_tracks
+
+    current_track = track
+    env = MiniRacer(track=current_track, seed=seed)
     device = Config.DEVICE
 
     viewer = PygameCarRacerViewer(scale=16, fps=fps, show_vae=(show_vae and vae is not None))
@@ -171,8 +181,8 @@ def run_inference_episode(controller=None, vae=None, seed=None, fps=25, show_vae
     cumulative_score = 0.0
     action = 1
 
-    print(f"\n--- Starting Race Episode (Seed: {seed if seed is not None else 'random'}) ---")
-    print("Controls: Close the window to stop.")
+    print(f"\n--- Starting Race Episode (Track: {current_track.upper()}, Seed: {seed if seed is not None else 'random'}) ---")
+    print("Controls: Press 'T' to cycle tracks. Close window to stop.")
 
     for step in range(1, max_steps + 1):
         recon_obs = None
@@ -184,7 +194,6 @@ def run_inference_episode(controller=None, vae=None, seed=None, fps=25, show_vae
                 recon = vae.decode(z).squeeze(0).cpu().numpy()
                 recon_obs = recon
         elif controller is not None:
-            # Fallback if no VAE
             action = controller.act(np.zeros(16))
         else:
             action = int(env.rng.integers(0, 3))
@@ -197,7 +206,15 @@ def run_inference_episode(controller=None, vae=None, seed=None, fps=25, show_vae
         info["action"] = action
         info["mode"] = "Dream-Trained C" if controller is not None else "Untrained/Random"
 
-        viewer.draw_frame(real_obs=obs, recon_obs=recon_obs, info=info)
+        pressed_keys = viewer.draw_frame(real_obs=obs, recon_obs=recon_obs, info=info)
+        if pygame.K_t in pressed_keys:
+            tracks = list_tracks()
+            idx = tracks.index(current_track) if current_track in tracks else 0
+            current_track = tracks[(idx + 1) % len(tracks)]
+            env = MiniRacer(track=current_track, seed=seed)
+            obs = env.reset()
+            cumulative_score = 0.0
+            print(f"[Visualizer] Switched track to: {current_track.upper()} (T key)")
 
         if done:
             print(f"Episode finished at step {step}! Final Score: {cumulative_score:.2f}")
@@ -275,12 +292,12 @@ def run_dream_race(mdn, vae, controller, start_seed=42, dream_steps=60, fps=20):
     viewer.close()
 
 
-def save_racing_gif(controller, vae, output_path, num_steps=120, seed=42):
+def save_racing_gif(controller, vae, output_path, num_steps=120, seed=42, track="circle"):
     """
     Renders an episode and exports it to an animated GIF (useful for headless / reporting).
     """
     from PIL import Image
-    env = MiniRacer(seed=seed)
+    env = MiniRacer(track=track, seed=seed)
     device = Config.DEVICE
     obs = env.reset()
 
@@ -303,7 +320,8 @@ def save_racing_gif(controller, vae, output_path, num_steps=120, seed=42):
 
         info_hud = create_hud_overlay(
             combined, step=step, reward=r, cumulative_score=tot,
-            action=a, d=info["d"], phi=info["phi"], direction=info["direction"]
+            action=a, d=info["d"], phi=info["phi"], direction=info["direction"],
+            track_name=info.get("track", track)
         )
         frames_pil.append(Image.fromarray(info_hud))
         if done:

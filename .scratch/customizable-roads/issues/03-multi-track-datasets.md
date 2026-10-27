@@ -4,9 +4,9 @@
 
 **Blocked by:** 02: Track Registry and Core Geometry Presets
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `collect_experience(track="...", ...)` collects rollouts on the specified track.
-- [ ] `get_or_create_dataset(track="...", ...)` caches to `random_dataset_<track>.npz`.
-- [ ] `track="all"` collects episodes distributed evenly across all registered tracks.
-- [ ] `run_train.py` accepts `--track <name>` and passes it to dataset collection and evaluation.
+- [x] `collect_experience(track="...", ...)` collects rollouts on the specified track.
+- [x] `get_or_create_dataset(track="...", ...)` caches to `random_dataset_<track>.npz`.
+- [x] `track="all"` collects episodes distributed evenly across all registered tracks.
+- [x] `run_train.py` accepts `--track <name>` and passes it to dataset collection and evaluation.
