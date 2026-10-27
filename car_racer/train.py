@@ -174,6 +174,7 @@ def train_c(vae,
             save_path=None,
             render_during_learning=False,
             render_interval=5,
+            track="circle",
             device=Config.DEVICE):
     """
     Trains Controller (C) via Evolution Strategies entirely inside M's dream.
@@ -184,7 +185,7 @@ def train_c(vae,
         save_path = os.path.join(Config.CHECKPOINT_DIR, "controller.npy")
 
     print("\n" + "=" * 50)
-    print(" [Step 3/3] Evolving Controller (C) entirely inside M's Dream")
+    print(f" [Step 3/3] Evolving Controller (C) entirely inside M's Dream (Track: {track})")
     print("=" * 50)
 
     controller = Controller()
@@ -197,7 +198,7 @@ def train_c(vae,
     hist_real = []
 
     # Initial baseline (untrained, theta = 0)
-    base_real, _ = evaluate_real(controller, vae, num_episodes=6, device=device)
+    base_real, _ = evaluate_real(controller, vae, num_episodes=6, track=track, device=device)
     seeds0 = [(int(rng.integers(0, episodes)), int(rng.integers(0, 10**6))) for _ in range(Config.ES_SEEDS_PER_GEN)]
     base_dream = evaluate_dream(controller, mdn, zs, a1h, seeds0, device=device)
 
@@ -207,8 +208,8 @@ def train_c(vae,
 
     # Optional initial visual demonstration
     if render_during_learning:
-        print("[Visualizer] Showing baseline (Gen 0) car driving on track...")
-        _render_eval_run(controller, vae, gen=0)
+        print(f"[Visualizer] Showing baseline (Gen 0) car driving on track '{track}'...")
+        _render_eval_run(controller, vae, gen=0, track=track)
 
     t0 = time.time()
     for g in range(1, generations + 1):
@@ -223,7 +224,7 @@ def train_c(vae,
 
         # Measure performance in imagination (dream) and on real track
         dream_score = evaluate_dream(controller, mdn, zs, a1h, seeds, device=device)
-        real_score, _ = evaluate_real(controller, vae, num_episodes=6, device=device)
+        real_score, _ = evaluate_real(controller, vae, num_episodes=6, track=track, device=device)
 
         hist_dream.append(dream_score)
         hist_real.append(real_score)
@@ -232,8 +233,8 @@ def train_c(vae,
 
         # Live visual feedback during learning!
         if render_during_learning and (g % render_interval == 0 or g == generations):
-            print(f"[Visualizer] Showing Gen {g} car driving on track...")
-            _render_eval_run(controller, vae, gen=g)
+            print(f"[Visualizer] Showing Gen {g} car driving on track '{track}'...")
+            _render_eval_run(controller, vae, gen=g, track=track)
 
     print(f"\nC evolved in {time.time()-t0:.1f}s. Saving to {save_path}...")
     Config.ensure_dirs()
@@ -245,11 +246,12 @@ def train_c(vae,
     return controller, hist_dream, hist_real
 
 
-def _render_eval_run(controller, vae, gen=0, max_steps=100):
+def _render_eval_run(controller, vae, gen=0, max_steps=100, track="circle"):
     """Helper to render an evaluation lap using Pygame."""
     try:
         from car_racer.env import MiniRacer
-        env = MiniRacer(seed=1000 + gen)
+        eval_track = "circle" if track == "all" else track
+        env = MiniRacer(track=eval_track, seed=1000 + gen)
         viewer = PygameCarRacerViewer(scale=14, fps=30, show_vae=True)
         obs = env.reset()
         cum_reward = 0.0
@@ -305,6 +307,8 @@ def parse_args():
                         help="Show live car racing on screen during evolution to watch learning in real time!")
     parser.add_argument("--render-interval", type=int, default=5,
                         help="Render evaluation race every N generations during training")
+    parser.add_argument("--track", type=str, default="circle",
+                        help="Target racetrack for dataset collection and training: circle, oval, figure8, s_curve, or all")
     parser.add_argument("--epochs-v", type=int, default=Config.VAE_EPOCHS, help="VAE training epochs")
     parser.add_argument("--epochs-m", type=int, default=Config.MDN_EPOCHS, help="MDN training epochs")
     parser.add_argument("--gens-c", type=int, default=Config.ES_GENERATIONS, help="Controller evolution generations")
@@ -320,7 +324,7 @@ def main():
     if not (args.train_all or args.train_v or args.train_m or args.train_c):
         args.train_all = True
 
-    dataset = get_or_create_dataset(force_recollect=args.force_recollect)
+    dataset = get_or_create_dataset(track=args.track, force_recollect=args.force_recollect)
 
     vae_path = os.path.join(Config.CHECKPOINT_DIR, "vae.pt")
     mdn_path = os.path.join(Config.CHECKPOINT_DIR, "mdn.pt")
@@ -367,7 +371,8 @@ def main():
             vae, mdn, zs, a1h,
             generations=args.gens_c,
             render_during_learning=args.render_learning,
-            render_interval=args.render_interval
+            render_interval=args.render_interval,
+            track=args.track
         )
 
     print("\nTraining workflow completed successfully!")

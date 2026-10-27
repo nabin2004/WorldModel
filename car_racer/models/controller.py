@@ -97,7 +97,7 @@ def evaluate_dream(controller, mdn, dataset_zs, dataset_actions, seeds,
 
 
 def evaluate_real(controller, vae, num_episodes=10, horizon=Config.ES_EVAL_HORIZON,
-                  seed_start=1000, device=Config.DEVICE):
+                  seed_start=1000, track="circle", device=Config.DEVICE):
     """
     Evaluates controller on the real MiniRacer track.
     (Used only for logging/measuring performance, never for training).
@@ -107,10 +107,13 @@ def evaluate_real(controller, vae, num_episodes=10, horizon=Config.ES_EVAL_HORIZ
     W = torch.tensor(params[:w_end], dtype=torch.float32, device=device).view(controller.action_dim, controller.latent_dim)
     b = torch.tensor(params[w_end:], dtype=torch.float32, device=device)
 
+    # Use first available track if 'all' is passed
+    eval_track = "circle" if track == "all" else track
+
     scores = []
     with torch.no_grad():
         for k in range(num_episodes):
-            env = MiniRacer(seed=seed_start + k)
+            env = MiniRacer(track=eval_track, seed=seed_start + k)
             obs = env.reset()
             tot = 0.0
             for _ in range(horizon):
