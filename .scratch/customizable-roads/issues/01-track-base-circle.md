@@ -4,9 +4,9 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `car_racer/tracks/` package contains base `Track` interface defining length $L$, centerline $(x, y)(s)$, tangent angle $\psi(s)$, curvature $\kappa(s)$, and $24 \times 24$ rasterization.
-- [ ] `CircularTrack` implements the baseline circular ring road ($R = 8.0, \text{HALF\_W} = 2.2$) matching the exact pixel representation and kerbs of existing `MiniRacer`.
-- [ ] `MiniRacer` accepts a `track` parameter, defaulting to `CircularTrack`.
-- [ ] Existing simulation behavior, step return values, and telemetry keys are preserved without regression.
+- [x] `car_racer/tracks/` package contains base `Track` interface defining length $L$, centerline $(x, y)(s)$, tangent angle $\psi(s)$, curvature $\kappa(s)$, and $24 \times 24$ rasterization.
+- [x] `CircularTrack` implements the baseline circular ring road ($R = 8.0, \text{HALF\_W} = 2.2$) matching the exact pixel representation and kerbs of existing `MiniRacer`.
+- [x] `MiniRacer` accepts a `track` parameter, defaulting to `CircularTrack`.
+- [x] Existing simulation behavior, step return values, and telemetry keys are preserved without regression.
