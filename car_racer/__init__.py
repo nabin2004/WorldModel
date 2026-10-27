@@ -9,6 +9,7 @@ from car_racer.models.mdn_rnn import MDNRNN
 from car_racer.models.controller import Controller, EvolutionOptimizer
 
 from car_racer.tracks import Track, get_track, list_tracks
+from car_racer.benchmark import run_cross_track_benchmark
 
 __all__ = [
     "Config",
@@ -21,5 +22,6 @@ __all__ = [
     "ConvVAE",
     "MDNRNN",
     "Controller",
-    "EvolutionOptimizer"
+    "EvolutionOptimizer",
+    "run_cross_track_benchmark"
 ]

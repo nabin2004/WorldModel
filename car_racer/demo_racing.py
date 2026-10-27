@@ -165,9 +165,9 @@ def show_learning_progression(controller, vae, fps=25, track="circle"):
 
 def main():
     parser = argparse.ArgumentParser(description="Live Visualizer for Car Racing")
-    parser.add_argument("--mode", type=str, choices=["inference", "learning", "dream", "manual", "gif"],
+    parser.add_argument("--mode", type=str, choices=["inference", "learning", "dream", "manual", "gif", "benchmark"],
                         default="inference",
-                        help="Mode: 'inference' (live race), 'learning' (compare learning stages), 'dream' (M's imagination), 'manual' (drive yourself), 'gif' (export animation)")
+                        help="Mode: 'inference' (live race), 'learning' (compare learning stages), 'dream' (M's imagination), 'manual' (drive yourself), 'gif' (export animation), 'benchmark' (cross-track evaluation)")
     parser.add_argument("--track", type=str, default="circle", help="Track name: circle, oval, figure8, s_curve")
     parser.add_argument("--seed", type=int, default=1001, help="Environment seed")
     parser.add_argument("--fps", type=int, default=25, help="Playback speed FPS")
@@ -195,6 +195,9 @@ def main():
         play_manual_mode(fps=args.fps, track=args.track)
     elif args.mode == "learning":
         show_learning_progression(controller, vae, fps=args.fps, track=args.track)
+    elif args.mode == "benchmark":
+        from car_racer.benchmark import run_cross_track_benchmark
+        run_cross_track_benchmark(controller=controller, vae=vae, episodes_per_track=5)
     elif args.mode == "dream":
         mdn = MDNRNN().to(Config.DEVICE)
         mdn_file = os.path.join(args.checkpoint_dir, "mdn.pt")

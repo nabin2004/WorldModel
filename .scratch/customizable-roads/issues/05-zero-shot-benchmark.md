@@ -4,8 +4,8 @@
 
 **Blocked by:** 02: Track Registry and Core Geometry Presets, 04: Adaptive Visualizer HUD
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `run_demo.py --mode benchmark` executes evaluation rollouts on every registered track.
-- [ ] Outputs formatted benchmark metrics table comparing `circle`, `oval`, `figure8`, and `s_curve`.
-- [ ] Saves summary evaluation plot to `car_racer/outputs/zero_shot_generalization.png`.
+- [x] `run_demo.py --mode benchmark` executes evaluation rollouts on every registered track.
+- [x] Outputs formatted benchmark metrics table comparing `circle`, `oval`, `figure8`, and `s_curve`.
+- [x] Saves summary evaluation plot to `car_racer/outputs/zero_shot_generalization.png`.
