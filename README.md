@@ -161,8 +161,34 @@ uv run python run_demo.py --mode manual
 Renders an evaluation episode to disk with full telemetry overlay:
 
 ```bash
-uv run python run_demo.py --mode gif --gif-out outputs/car_race_demo.gif
+uv run python run_demo.py --mode gif --track oval --gif-out outputs/car_race_demo.gif
 ```
+
+### 6. Zero-Shot Cross-Track Benchmark Suite
+
+Evaluates the trained controller across all registered track topologies (`circle`, `oval`, `figure8`, `s_curve`) and outputs comparative returns, survival rates, and centerline errors:
+
+```bash
+uv run python run_demo.py --mode benchmark
+```
+
+> [!TIP]
+> During interactive demo runs (`--mode inference` and `--mode manual`), press **`T`** at any time to cycle between track layouts live without restarting.
+
+---
+
+## Customizable Track Geometries
+
+The environment includes a modular `Track` interface with built-in presets:
+
+| Track Preset | Geometry Description | Key Challenges |
+| :--- | :--- | :--- |
+| `circle` | Standard concentric ring road ($R = 8.0$) | Baseline constant curvature |
+| `oval` | Elongated stadium layout | High-speed straights into tight turns |
+| `figure8` | Infinity-shaped ($\infty$) crossover | Alternating left and right transitions |
+| `s_curve` | Serpentine 3-lobe wavy track | Rapid continuous steering reversals |
+
+Tracks can be selected for training or inference via `--track <name>` (or `--track all` for composite dataset collection).
 
 ---
 
@@ -173,23 +199,23 @@ Models can be trained end-to-end or component-by-component.
 ### End-to-End Pipeline
 
 ```bash
-uv run python run_train.py --train-all
+uv run python run_train.py --train-all --track circle
 ```
 
 ### Component-Specific Training
 
 ```bash
-# 1. Train Vision Model (V - ConvVAE)
-uv run python run_train.py --train-v --epochs-v 30
+# 1. Train Vision Model (V - ConvVAE) on specific track or all tracks
+uv run python run_train.py --train-v --track all --epochs-v 30
 
 # 2. Train Memory Model (M - MDN-RNN)
-uv run python run_train.py --train-m --epochs-m 30
+uv run python run_train.py --train-m --track circle --epochs-m 30
 
 # 3. Evolve Controller (C) inside M's dream environment
-uv run python run_train.py --train-c --gens-c 20
+uv run python run_train.py --train-c --track circle --gens-c 20
 
-# 4. Evolve Controller with live evaluation render every N generations
-uv run python run_train.py --train-c --render-learning --render-interval 5
+# 4. Evolve Controller with live evaluation render on the active track
+uv run python run_train.py --train-c --track oval --render-learning --render-interval 5
 ```
 
 ### Command-Line Arguments Reference
@@ -200,6 +226,7 @@ uv run python run_train.py --train-c --render-learning --render-interval 5
 | `--train-v` | Flag | `False` | Train Vision model only |
 | `--train-m` | Flag | `False` | Train Memory model only |
 | `--train-c` | Flag | `False` | Evolve Controller policy only |
+| `--track` | String | `circle` | Target track: `circle`, `oval`, `figure8`, `s_curve`, or `all` |
 | `--epochs-v` | Integer | `30` | Number of epochs for VAE training |
 | `--epochs-m` | Integer | `30` | Number of epochs for MDN-RNN training |
 | `--gens-c` | Integer | `20` | Number of generations for controller evolution |
