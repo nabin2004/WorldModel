@@ -1,178 +1,176 @@
-# Mini World Models: V · M · C on a Racing Track
+# World Models: Vision, Memory, and Controller Package
 
-A clean, modular implementation of Ha & Schmidhuber's classic **World Models** (2018) architecture on a top-down car racing track, featuring live real-time visualizers for **inferencing** and **learning**.
-
----
-
-## 🏎️ Architecture Overview
-
-The agent learns to drive **without interacting with the real environment during policy learning**, by hallucinating inside its own learned model:
-
-```
-                  ┌────────────────────────────────────────────────────────┐
-                  │                   1. Vision (V)                        │
-Observation ─────►│              Convolutional VAE                         │─────► Latent Code z (16)
-(24×24×3 RGB)     │   Compresses raw pixels into smooth latent space       │
-                  └────────────────────────────────────────────────────────┘
-                                              │
-                                              ▼
-                  ┌────────────────────────────────────────────────────────┐
-                  │                   2. Memory (M)                        │
-Action a (t) ────►│      Recurrent World Model (GRU + MDN + Reward)        │─────► Next Latent Code ẑ
-Hidden state h ──►│    Predicts distribution over future codes & rewards   │       + Imagined Reward r̂
-                  └────────────────────────────────────────────────────────┘
-                                              │
-                                              ▼
-                  ┌────────────────────────────────────────────────────────┐
-                  │                 3. Controller (C)                      │
-Latent Code z ───►│       Compact Linear Policy (51 Parameters)            │─────► Action a (t+1)
-                  │   Trained purely inside M's dream using Evolution (ES) │
-                  └────────────────────────────────────────────────────────┘
-```
+A modular implementation of the World Models architecture (Ha & Schmidhuber, 2018) applied to a 2D top-down car racing simulation. The system decouples visual perception, temporal dynamics forecasting, and policy evolution.
 
 ---
 
-## 📁 Modular Codebase Structure
+## Architecture and Data Flow
+
+```mermaid
+flowchart TD
+    subgraph Vision ["1. Vision Model (V) - ConvVAE"]
+        Obs["Input Observation (24x24x3 RGB)"] --> Enc["Encoder (4x Conv2D + ReLU)"]
+        Enc --> Mu["Mean mu (dim 16)"]
+        Enc --> LogVar["LogVar sigma (dim 16)"]
+        Mu --> Reparam["Reparameterization z = mu + eps * sigma"]
+        LogVar --> Reparam
+        Reparam --> LatentZ["Latent Vector z (dim 16)"]
+        LatentZ --> Dec["Decoder (4x ConvTranspose2D + Sigmoid)"]
+        Dec --> Recon["Reconstructed Frame (24x24x3 RGB)"]
+    end
+
+    subgraph Memory ["2. Memory Model (M) - MDN-RNN"]
+        LatentZ --> GRU["GRU Cell (Hidden Dim: 160)"]
+        ActPrev["Action a(t) [One-Hot: dim 3]"] --> GRU
+        HiddenPrev["Hidden State h(t) [dim 160]"] --> GRU
+        GRU --> HiddenNext["Next Hidden State h(t+1)"]
+        HiddenNext --> MDNHead["MDN Head (K=5 Gaussians)"]
+        HiddenNext --> RewardHead["Reward Head (Linear)"]
+        MDNHead --> NextZ["Predicted Latent z_hat(t+1)"]
+        RewardHead --> RewardHat["Predicted Reward r_hat"]
+    end
+
+    subgraph Controller ["3. Controller (C) - Linear Policy"]
+        LatentZ --> LinearPolicy["Linear Layer: W * z + b (51 Parameters)"]
+        LinearPolicy --> ActionNext["Action a(t+1) in {0: Left, 1: Straight, 2: Right}"]
+    end
+```
+
+### Module Responsibilities
+
+1. **Vision Model (V)**: A 4-layer Convolutional Variational Autoencoder (`car_racer/models/vae.py`) compressing high-dimensional image inputs ($24 \times 24 \times 3 = 1,728$ values) into a 16-dimensional latent vector $z$.
+2. **Memory Model (M)**: A Recurrent Neural Network (`car_racer/models/mdn_rnn.py`) combining a 160-dimensional GRU with a Mixture Density Network (5 Gaussian components) and a scalar reward head. It forecasts future latent transitions $P(z_{t+1} \mid z_t, a_t, h_t)$ and expected step returns $\hat{r}_{t+1}$.
+3. **Controller (C)**: A linear policy (`car_racer/models/controller.py`) containing 51 parameters ($16 \times 3 + 3$). The policy is trained strictly inside synthetic trajectories hallucinated by $M$ using Natural Evolution Strategies (NES), requiring zero interaction with the real physics engine during policy optimization.
+
+---
+
+## Package Organization
 
 ```
-WOM/
-├── car_racer/
-│   ├── __init__.py           # Package exports
-│   ├── config.py             # Hyperparameters, constants & paths
-│   ├── env.py                # MiniRacer environment (physics, telemetry, reward)
-│   ├── dataset.py            # Random exploration dataset collection & caching
-│   ├── models/
-│   │   ├── __init__.py
-│   │   ├── vae.py            # V: ConvVAE (reparameterization, weighted reconstruction)
-│   │   ├── mdn_rnn.py        # M: GRU + Mixture Density Network + Reward Head
-│   │   └── controller.py     # C: 51-param linear policy + Evolution Strategies (NES)
-│   ├── train.py              # Modular training pipeline with live render callbacks
-│   ├── visualize.py          # Pygame GUI viewer, dream viewer & GIF export
-│   ├── demo_racing.py        # Interactive CLI demo for learning & inferencing
-│   ├── requirements.txt      # Python dependencies
-│   ├── checkpoints/          # Saved model weights (vae.pt, mdn.pt, controller.npy)
-│   ├── data/                 # Cached experience datasets
-│   └── outputs/              # Saved GIF animations and plots
-├── run_demo.py               # Root quick launcher for racing demo
-├── run_train.py              # Root quick launcher for training
-├── pyproject.toml            # Project configuration & dependencies (uv)
-├── uv.lock                   # Deterministic lockfile (uv)
-└── requirements.txt          # Python dependencies (pip fallback)
+car_racer/
+├── __init__.py           # Package exports and public interface
+├── config.py             # Hyperparameters, device configuration, and file paths
+├── env.py                # MiniRacer simulation environment and Frenet kinematics
+├── dataset.py            # Rollout experience collection and cache management
+├── benchmark.py          # Cross-track zero-shot generalization benchmark suite
+├── visualize.py          # Pygame viewer, HUD overlay, and GIF export
+├── demo_racing.py        # CLI entry point for visual modes and benchmarks
+├── train.py              # Modular training pipeline with live render callbacks
+├── tracks/               # Modular road geometry package
+│   ├── __init__.py       # Track module exports
+│   ├── base.py           # Abstract Track base class
+│   ├── circle.py         # Circular ring road preset
+│   ├── parametric.py     # ParametricClosedTrack curve discretizer
+│   ├── presets.py        # Oval, Figure8, and SCurve geometry implementations
+│   └── registry.py       # Global track registry and lookup utilities
+├── models/               # PyTorch neural network architectures
+│   ├── __init__.py       # Model module exports
+│   ├── vae.py            # ConvVAE implementation
+│   ├── mdn_rnn.py        # MDN-RNN implementation and sampling functions
+│   └── controller.py     # Controller policy and NES optimizer
+├── checkpoints/          # Serialized weights (vae.pt, mdn.pt, controller.npy)
+├── data/                 # Cached rollout datasets (random_dataset_<track>.npz)
+└── outputs/              # Exported plots and GIF animations
 ```
 
 ---
 
-## 🚀 Quick Start
+## Key Engineering Implementations
 
-### 1. Environment Setup
+### 1. Weighted Non-Background Reconstruction Loss
+The vehicle occupies only 4 out of 576 pixels ($0.7\%$ of the visual frame). Standard Mean Squared Error (MSE) loss causes the autoencoder to ignore the vehicle and reconstruct an empty road. The VAE implementation applies a $30\times$ penalty weight to non-background pixels, forcing the latent representation to preserve exact vehicle position and steering angle.
 
-This project uses [uv](https://docs.astral.sh/uv/) for ultra-fast dependency resolution and virtual environment management:
+### 2. Latent Manifold Smoothing via Noise Injection
+During decoder training, Gaussian noise ($\sigma = 0.10$) is added to latent code $z$ before decoding:
+
+$$z_{\text{noisy}} = z + \epsilon, \quad \epsilon \sim \mathcal{N}(0, 0.10^2 \cdot \mathbf{I})$$
+
+This prevents the decoder from overfitting to discrete points, ensuring that near-miss latent predictions generated by $M$ during dream rollouts decode into coherent visual representations rather than degenerate artifacts.
+
+### 3. Multimodal Dynamics with Mixture Density Outputs
+Because episode direction (clockwise vs. counter-clockwise) is sampled as a hidden coin flip at reset, the environment transition dynamics are multimodal. A standard regression head averages divergent paths into an uninformative blur. The MDN head models future states using a mixture of $K=5$ Gaussian distributions:
+
+$$P(z_{t+1} \mid z_t, a_t, h_t) = \sum_{k=1}^{K} \pi_k \cdot \mathcal{N}\left(\mu_k, \sigma_k^2 \cdot \mathbf{I}\right)$$
+
+### 4. Zero-Environment Policy Training
+The Controller policy is evolved inside $M$'s recurrent imagination. A candidate parameter vector is evaluated over 40-step dreamed rollouts starting from warm-up latent codes. The learned reward head $\hat{r}$ provides feedback to Natural Evolution Strategies (NES) using Antithetic Perturbation Pairs, achieving robust zero-shot transfer when tested on the real physics environment.
+
+### 5. Modular Frenet-Serret Track Kinematics
+Vehicle motion is computed in curvilinear Frenet coordinates $(s, d, \phi)$ along parametric curves, updating progress via:
+
+$$\Delta s = \text{direction} \cdot \frac{\text{SPEED}}{\max(0.2, 1.0 + d \cdot \kappa(s))}$$
+
+This decoupling allows policies to be evaluated across varied track geometries (`circle`, `oval`, `figure8`, `s_curve`) without retraining.
+
+---
+
+## Environment Setup
+
+Dependencies and virtual environments are managed using [uv](https://docs.astral.sh/uv/):
 
 ```bash
-# Sync dependencies and set up .venv
+# Synchronize environment
 uv sync
 
-# Run demo or training directly with uv
-uv run python run_demo.py --mode inference
-```
-
-Alternatively, activate the virtual environment or use standard `pip`:
-
-```bash
-# Windows
-.venv\Scripts\activate
-
-# Unix / macOS
-source .venv/bin/activate
-
-# (Fallback) Install via pip
-pip install -r requirements.txt
+# Run interactive visualizer
+uv run python -m car_racer.demo_racing --mode inference --track oval
 ```
 
 ---
 
-## 🎮 Running Car Racing During Learning & Inferencing
+## Operational Workflows
 
-We provide the dedicated `demo_racing.py` script (or `run_demo.py` from root) with multiple visual modes:
-
-### 1. Real-Time Inferencing Mode (Trained Driver)
-Watch the dream-trained agent drive in real-time with an upscaled view, side-by-side VAE reconstruction, and a rich telemetry HUD:
+### 1. Interactive Racing Visualizer
 
 ```bash
-python run_demo.py --mode inference
+# Real-time autonomous driving with side-by-side VAE reconstruction
+uv run python -m car_racer.demo_racing --mode inference --track figure8
+
+# Manual keyboard driving (Left / Up / Right arrows)
+uv run python -m car_racer.demo_racing --mode manual --track s_curve
+
+# Pure imagination mode (visualizing M's recurrent dream without game physics)
+uv run python -m car_racer.demo_racing --mode dream
+
+# Three-stage learning progression comparison (Gen 0 vs Mid vs Gen 20)
+uv run python -m car_racer.demo_racing --mode learning --track circle
 ```
 
-**HUD Telemetry Displays:**
-- **Current Mode**: Autonomous Dream-Trained C
-- **Steering Action**: `LEFT ◄`, `STRAIGHT ▲`, or `RIGHT ►`
-- **Deviation from Center Line ($d$)**: Distance from the center of the ring road
-- **Steering Angle ($\phi$)**: Current car orientation relative to track
-- **Direction**: Hidden episode coin flip (`Clockwise` or `Counter-Clockwise`)
-- **Cumulative Score & Step Reward**
+> [!TIP]
+> During interactive demo modes (`inference` and `manual`), press **`T`** to cycle dynamically between available track geometries.
 
-### 2. Watch Car Racing During Learning Progression
-Watch how the car's driving behavior evolves through 3 distinct learning phases:
-- **Phase 1 (Gen 0 Baseline)**: Car steers blindly into the kerb and gets stuck.
-- **Phase 2 (Mid-Learning)**: Car starts reacting and exploring cornering angles.
-- **Phase 3 (Dream-Trained Gen 20)**: Car smoothly corners and maintains center-line driving.
+### 2. Zero-Shot Generalization Benchmark
+
+Evaluates policy transfer across all registered track topologies:
 
 ```bash
-python run_demo.py --mode learning
+uv run python -m car_racer.demo_racing --mode benchmark
 ```
 
-### 3. Live Visual Racing While Training
-Train the Controller while popping up a live racing window every N generations so you can observe the learning curve in real-time:
+Generates comparative metrics and exports a performance summary plot to `car_racer/outputs/zero_shot_generalization.png`.
+
+### 3. Component-Specific Training Pipeline
+
+Train individual models or the complete pipeline end-to-end:
 
 ```bash
-python run_train.py --train-c --render-learning --render-interval 5
-```
+# End-to-end training (V -> M -> C)
+uv run python -m car_racer.train --train-all --track circle
 
-### 4. Inside M's Dream (Pure Imagination Mode)
-Unplug reality! Watch the car race **purely inside the memory model's recurrent imagination** without calling the game engine:
+# Train Vision model (V) on composite multi-track dataset
+uv run python -m car_racer.train --train-v --track all --epochs-v 30
 
-```bash
-python run_demo.py --mode dream
-```
+# Train Memory model (M) on specific track rollouts
+uv run python -m car_racer.train --train-m --track circle --epochs-m 30
 
-### 5. Manual Play Mode (Drive with Keyboard)
-Take control yourself using the Arrow Keys (`Left`, `Straight/Up`, `Right`) to test the physics and see how hard the track is:
-
-```bash
-python run_demo.py --mode manual
-```
-
-### 6. Export Animated GIF
-Generate an animated GIF of the car racing with HUD telemetry:
-
-```bash
-python run_demo.py --mode gif --gif-out outputs/car_race_demo.gif
+# Evolve Controller (C) with live visual evaluation every 5 generations
+uv run python -m car_racer.train --train-c --track oval --render-learning --render-interval 5
 ```
 
 ---
 
-## 🛠️ Training Workflow
+## References
 
-You can train any component individually or all together end-to-end:
-
-```bash
-# 1. Train everything end-to-end (V -> M -> C)
-python run_train.py --train-all
-
-# 2. Train only Vision (V - ConvVAE)
-python run_train.py --train-v --epochs-v 30
-
-# 3. Train only Memory (M - MDN-RNN)
-python run_train.py --train-m --epochs-m 30
-
-# 4. Evolve Controller (C) inside M's dream
-python run_train.py --train-c --gens-c 20
-```
-
----
-
-## 🔬 Key Engineering Highlights
-
-1. **Weighting What Moves**: The red car is only 4 out of 576 pixels (0.7% of the image). A naive MSE loss ignores the car and reconstructs an empty track. Our VAE assigns $30\times$ weight to non-background pixels.
-2. **Smooth Latent Manifold**: Extra Gaussian noise (`+ 0.10`) is added to $z$ during decoder training, ensuring M's near-miss predictions decode to stable visual frames.
-3. **Mixture Density Head**: Solves the hidden clockwise/counter-clockwise ambiguity by outputting $K=5$ Gaussian candidates rather than averaging them into a stationary blur.
-4. **Zero Real-World Training for Policy**: Controller $C$ (51 parameters) never drives on the real track during evolution—it is evaluated solely on $M$'s learned reward head $\hat{r}$, yet achieves near-optimal real-world transfer.
+- Ha, D., & Schmidhuber, J. (2018). *Recurrent World Models Facilitate Policy Evolution*. Advances in Neural Information Processing Systems (NeurIPS 2018). [arXiv:1803.10122](https://arxiv.org/abs/1803.10122).
+- Bishop, C. M. (1994). *Mixture Density Networks*. Technical Report NCRG/94/004, Aston University.
+- Salimans, T., Ho, J., Chen, X., Sidor, S., & Sutskever, I. (2017). *Evolution Strategies as a Scalable Alternative to Reinforcement Learning*. [arXiv:1703.03864](https://arxiv.org/abs/1703.03864).
