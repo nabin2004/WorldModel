@@ -8,9 +8,14 @@ from car_racer.models.vae import ConvVAE
 from car_racer.models.mdn_rnn import MDNRNN
 from car_racer.models.controller import Controller, EvolutionOptimizer
 
+from car_racer.tracks import Track, get_track, list_tracks
+
 __all__ = [
     "Config",
     "MiniRacer",
+    "Track",
+    "get_track",
+    "list_tracks",
     "collect_experience",
     "get_or_create_dataset",
     "ConvVAE",
