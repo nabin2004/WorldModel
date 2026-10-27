@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: resolved
 
 # Specification: Modular & Customizable Road Geometry for Car Racing
 
