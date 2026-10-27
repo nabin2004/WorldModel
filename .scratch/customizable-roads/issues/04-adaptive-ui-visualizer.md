@@ -4,9 +4,9 @@
 
 **Blocked by:** 02: Track Registry and Core Geometry Presets
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Pygame HUD overlay displays active track name and local track curvature.
-- [ ] `run_demo.py` accepts `--track <name>` for all visualizer modes.
-- [ ] Pressing `T` in manual or inference demo mode cycles to the next registered track live without crashing.
-- [ ] `--render-learning` in `run_train.py` renders evaluation laps on the track configured for training.
+- [x] Pygame HUD overlay displays active track name and local track curvature.
+- [x] `run_demo.py` accepts `--track <name>` for all visualizer modes.
+- [x] Pressing `T` in manual or inference demo mode cycles to the next registered track live without crashing.
+- [x] `--render-learning` in `run_train.py` renders evaluation laps on the track configured for training.
