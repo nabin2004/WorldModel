@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 620" width="1180" height="620" role="img" aria-labelledby="ttl dsc">
+  <title id="ttl">World Models architecture: Vision, Memory, Controller</title>
+  <desc id="dsc">The environment emits an observation o_t, which the Vision model V encodes into a 16-dimensional latent z_t. The Memory model M (GRU with MDN and reward heads) consumes z_t and action a_t and carries hidden state h_t. The Controller C, a 51-parameter linear policy, maps z_t and h_t to the action a_t, which is fed back to the environment and to M.</desc>
+
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0.5 L8.5,4.5 L0,8.5 L2.2,4.5 z" fill="#334155"/>
+    </marker>
+    <marker id="arrg" markerWidth="9" markerHeight="9" refX="7.5" refY="4.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0.5 L8.5,4.5 L0,8.5 L2.2,4.5 z" fill="#64748b"/>
+    </marker>
+    <filter id="sh" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      text { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; fill: #0f172a; }
+      .v   { font-family: Georgia, 'Times New Roman', serif; font-style: italic; }
+      .s   { font-size: 10px; }
+      .h   { font-size: 14px; font-weight: 700; }
+      .t   { font-size: 12px; }
+      .m   { font-size: 11px; fill: #475569; }
+      .tab { font-size: 13px; font-weight: 700; letter-spacing: 0.06em; }
+      .lbl { font-size: 14px; }
+    </style>
+  </defs>
+
+  <!-- canvas -->
+  <rect width="1180" height="620" rx="14" fill="#ffffff" stroke="#e2e8f0"/>
+
+  <!-- legend -->
+  <path d="M24 30 H56" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <text x="66" y="34" class="m">data flow</text>
+  <path d="M24 50 H56" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arrg)"/>
+  <text x="66" y="54" class="m">training / visualization only</text>
+
+  <!-- ============ ENVIRONMENT ============ -->
+  <rect x="20" y="240" width="130" height="120" rx="10" fill="#f1f5f9" stroke="#64748b" stroke-width="1.5" filter="url(#sh)"/>
+  <ellipse cx="85" cy="285" rx="30" ry="17" fill="none" stroke="#cbd5e1" stroke-width="10"/>
+  <ellipse cx="85" cy="285" rx="30" ry="17" fill="none" stroke="#64748b" stroke-width="1" stroke-dasharray="3 3"/>
+  <rect x="111" y="282" width="9" height="6" rx="1.5" fill="#dc2626"/>
+  <text x="85" y="327" text-anchor="middle" class="h" style="font-size:13px">Environment</text>
+  <text x="85" y="344" text-anchor="middle" class="m">MiniRacer</text>
+
+  <!-- observation arrow -->
+  <path d="M150 300 H236" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <text x="185" y="289" text-anchor="middle" class="v lbl">o<tspan class="s" dy="3">t</tspan></text>
+  <text x="185" y="320" text-anchor="middle" class="m">24&#215;24&#215;3</text>
+
+  <!-- ============ V : VISION ============ -->
+  <rect x="220" y="205" width="240" height="265" rx="12" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="460" y="197" text-anchor="end" class="tab" style="fill:#1d4ed8">V &#183; VISION &#8212; ConvVAE</text>
+
+  <!-- encoder -->
+  <polygon points="238,255 308,282 308,318 238,345" fill="#bfdbfe" stroke="#2563eb" stroke-width="1.5" stroke-linejoin="round"/>
+  <text x="273" y="370" text-anchor="middle" class="t">Encoder</text>
+  <path d="M308 300 H344" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+
+  <!-- latent grid: 2 x 8 = 16 cells -->
+  <g stroke="#eff6ff" stroke-width="1" fill="#3b82f6">
+    <rect x="346" y="250"   width="20" height="12.5" fill-opacity="0.95"/><rect x="366" y="250"   width="20" height="12.5" fill-opacity="0.45"/>
+    <rect x="346" y="262.5" width="20" height="12.5" fill-opacity="0.60"/><rect x="366" y="262.5" width="20" height="12.5" fill-opacity="0.85"/>
+    <rect x="346" y="275"   width="20" height="12.5" fill-opacity="0.35"/><rect x="366" y="275"   width="20" height="12.5" fill-opacity="0.70"/>
+    <rect x="346" y="287.5" width="20" height="12.5" fill-opacity="0.80"/><rect x="366" y="287.5" width="20" height="12.5" fill-opacity="0.50"/>
+    <rect x="346" y="300"   width="20" height="12.5" fill-opacity="0.55"/><rect x="366" y="300"   width="20" height="12.5" fill-opacity="0.95"/>
+    <rect x="346" y="312.5" width="20" height="12.5" fill-opacity="0.90"/><rect x="366" y="312.5" width="20" height="12.5" fill-opacity="0.40"/>
+    <rect x="346" y="325"   width="20" height="12.5" fill-opacity="0.45"/><rect x="366" y="325"   width="20" height="12.5" fill-opacity="0.75"/>
+    <rect x="346" y="337.5" width="20" height="12.5" fill-opacity="0.70"/><rect x="366" y="337.5" width="20" height="12.5" fill-opacity="0.55"/>
+  </g>
+  <rect x="346" y="250" width="40" height="100" fill="none" stroke="#1d4ed8" stroke-width="1.5"/>
+  <text x="366" y="240" text-anchor="middle" class="v t"><tspan>z</tspan><tspan class="s" dy="3">t</tspan><tspan dy="-3" style="font-family:Helvetica,Arial,sans-serif;font-style:normal"> &#8712; &#8477;</tspan><tspan class="s" dy="-5" style="font-style:normal">16</tspan></text>
+
+  <!-- decoder branch (training / visualization) -->
+  <path d="M366 351 V389" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4 3" fill="none" marker-end="url(#arrg)"/>
+  <rect x="306" y="391" width="120" height="38" rx="7" fill="#f8fafc" stroke="#64748b" stroke-width="1.3" stroke-dasharray="4 3"/>
+  <text x="366" y="407" text-anchor="middle" class="t" style="font-weight:700">Decoder</text>
+  <text x="366" y="421" text-anchor="middle" class="m">reconstruct <tspan class="v">x&#770;</tspan><tspan class="s v" dy="3">t</tspan></text>
+  <text x="340" y="459" text-anchor="middle" class="m">trained on random rollouts</text>
+
+  <!-- latent fan-out -->
+  <path d="M386 300 H500" stroke="#334155" stroke-width="1.8" fill="none"/>
+  <circle cx="500" cy="300" r="4" fill="#334155"/>
+  <path d="M500 300 V170 H597" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <path d="M500 300 V470 H646" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <text x="512" y="164" class="v lbl">z<tspan class="s" dy="3">t</tspan></text>
+  <text x="512" y="464" class="v lbl">z<tspan class="s" dy="3">t</tspan></text>
+
+  <!-- ============ M : MEMORY ============ -->
+  <rect x="540" y="50" width="520" height="240" rx="12" fill="#fffbeb" stroke="#f59e0b" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="1060" y="42" text-anchor="end" class="tab" style="fill:#b45309">M &#183; MEMORY &#8212; MDN-RNN</text>
+
+  <!-- GRU -->
+  <rect x="600" y="125" width="190" height="90" rx="10" fill="#fde68a" stroke="#d97706" stroke-width="1.5"/>
+  <text x="695" y="158" text-anchor="middle" class="h">GRU</text>
+  <text x="695" y="181" text-anchor="middle" class="v t">h<tspan class="s" dy="3">t</tspan><tspan dy="-3" style="font-style:normal"> = f(</tspan>h<tspan class="s" dy="3">t&#8722;1</tspan><tspan dy="-3" style="font-style:normal">, </tspan>z<tspan class="s" dy="3">t</tspan><tspan dy="-3" style="font-style:normal">, </tspan>a<tspan class="s" dy="3">t</tspan><tspan dy="-3" style="font-style:normal">)</tspan></text>
+  <text x="695" y="199" text-anchor="middle" class="m">recurrent world dynamics</text>
+
+  <!-- recurrence loop -->
+  <path d="M745 125 V95 H655 V122" stroke="#334155" stroke-width="1.6" fill="none" marker-end="url(#arr)"/>
+  <text x="700" y="88" text-anchor="middle" class="v m">h<tspan class="s" dy="3">t&#8722;1</tspan></text>
+
+  <!-- heads -->
+  <path d="M790 160 C 830 160 830 111 867 111" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <path d="M790 182 C 830 182 830 186 867 186" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <rect x="870" y="78" width="165" height="66" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="952" y="99" text-anchor="middle" class="t" style="font-weight:700">MDN head</text>
+  <text x="952" y="116" text-anchor="middle" class="t">&#960;, &#956;, &#963; &#8594; p(<tspan class="v">z&#770;</tspan><tspan class="s v" dy="3">t+1</tspan><tspan dy="-3">)</tspan></text>
+  <text x="952" y="132" text-anchor="middle" class="m">mixture of Gaussians</text>
+  <rect x="870" y="158" width="165" height="56" rx="8" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+  <text x="952" y="180" text-anchor="middle" class="t" style="font-weight:700">Reward head</text>
+  <text x="952" y="198" text-anchor="middle" class="t"><tspan class="v">r&#770;</tspan><tspan class="s v" dy="3">t+1</tspan></text>
+
+  <text x="1044" y="279" text-anchor="end" class="m">trained on latent sequences</text>
+
+  <!-- ============ C : CONTROLLER ============ -->
+  <rect x="540" y="360" width="520" height="200" rx="12" fill="#f0fdf4" stroke="#22c55e" stroke-width="1.5" filter="url(#sh)"/>
+  <text x="1060" y="352" text-anchor="end" class="tab" style="fill:#15803d">C &#183; CONTROLLER &#8212; LINEAR POLICY</text>
+
+  <!-- concat -->
+  <circle cx="660" cy="470" r="11" fill="#ffffff" stroke="#15803d" stroke-width="1.6"/>
+  <path d="M653 470 H667 M660 463 V477" stroke="#15803d" stroke-width="1.6" fill="none"/>
+  <text x="660" y="499" text-anchor="middle" class="v m">[z<tspan class="s" dy="3">t</tspan><tspan dy="-3">, h</tspan><tspan class="s" dy="3">t</tspan><tspan dy="-3">]</tspan></text>
+
+  <!-- hidden state down to controller -->
+  <path d="M660 215 V457" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <text x="672" y="328" class="v lbl">h<tspan class="s" dy="3">t</tspan></text>
+
+  <!-- policy -->
+  <path d="M671 470 H717" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <rect x="720" y="425" width="190" height="90" rx="10" fill="#bbf7d0" stroke="#16a34a" stroke-width="1.5"/>
+  <text x="815" y="456" text-anchor="middle" class="h">Linear policy</text>
+  <text x="815" y="475" text-anchor="middle" class="t">51 parameters</text>
+  <text x="815" y="494" text-anchor="middle" class="m">&#952; evolved with NES</text>
+  <text x="1044" y="548" text-anchor="end" class="m">evolved entirely inside M&#8217;s dream</text>
+
+  <!-- action out -->
+  <path d="M910 470 H1100" stroke="#334155" stroke-width="1.8" fill="none"/>
+  <circle cx="1100" cy="470" r="4" fill="#334155"/>
+  <text x="990" y="462" text-anchor="middle" class="v lbl">a<tspan class="s" dy="3">t</tspan></text>
+
+  <!-- action back into M (enters GRU from below) -->
+  <path d="M1100 470 V245 H750 V217" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <text x="920" y="238" text-anchor="middle" class="v lbl">a<tspan class="s" dy="3">t</tspan></text>
+
+  <!-- action back to environment -->
+  <path d="M1100 470 V596 H85 V365" stroke="#334155" stroke-width="1.8" fill="none" marker-end="url(#arr)"/>
+  <text x="590" y="586" text-anchor="middle" class="t"><tspan class="v">a</tspan><tspan class="s v" dy="3">t</tspan><tspan dy="-3"> &#8712; {LEFT, STRAIGHT, RIGHT} &#8212; applied to the environment</tspan></text>
+</svg>
