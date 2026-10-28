@@ -1,6 +1,22 @@
 # World Models: Vision, Memory, and Controller on Car Racing
 
-An implementation of the World Models architecture (Ha & Schmidhuber, 2018) applied to a top-down car racing track, featuring live real-time visualizers for training and inference.
+<div align="center">
+
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/release/python-3110/)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Architecture](https://img.shields.io/badge/Architecture-World%20Models%20(V%2C%20M%2C%20C)-orange.svg)](https://arxiv.org/abs/1803.10122)
+
+An implementation of Ha & Schmidhuber's classic **World Models** (2018) architecture on a top-down 2D car racing simulation, featuring real-time telemetry visualizers, hallucinated latent dreams, and policy evolution.
+
+<br/>
+
+<img src="assets/car_race_inference.gif" alt="World Models Autonomous Car Racing Demo" width="760"/>
+
+<p>
+  <strong>Autonomous Closed-Loop Racing:</strong> Real environment track (left) alongside ConvVAE latent reconstruction (right) with real-time steering and telemetry HUD.
+</p>
+
+</div>
 
 ---
 
@@ -50,10 +66,50 @@ flowchart LR
 
 ---
 
+## Visual Demonstrations & Showcase
+
+### 1. Autonomous Closed-Loop Racing (Inference Mode)
+The dream-evolved Controller ($C$, 51 parameters) maps the ConvVAE latent code $z \in \mathbb{R}^{16}$ and recurrent memory state $h$ directly to steering commands. The display renders the raw environment side-by-side with the real-time VAE reconstruction and live telemetry:
+
+<div align="center">
+  <img src="assets/car_race_inference.gif" alt="Autonomous Car Racing Demo" width="740"/>
+  <p><em>Real Track Observation (left) vs. ConvVAE Reconstruction (right) at 25 FPS.</em></p>
+</div>
+
+### 2. Learning Progression: Untrained Baseline vs. Dream-Trained Policy
+Policy evolution takes place entirely within $M$'s recurrent imagination. The split-screen below directly contrasts the untrained baseline (**Generation 0**, immediately running off track) against the evolved policy (**Generation 20**, navigating curves with high precision):
+
+<div align="center">
+  <img src="assets/learning_progression.gif" alt="Policy Learning Progression Comparison" width="740"/>
+  <p><em>Split-screen comparison: Generation 0 baseline (left) vs. Generation 20 dream-trained agent (right).</em></p>
+</div>
+
+The evaluation curve verifies that policies evolved purely inside the hallucinated memory transfer zero-shot to physical tracks:
+
+<div align="center">
+  <img src="assets/learning_transfer_verdict.png" alt="Learning Transfer Verdict" width="680"/>
+  <p><em>Zero-shot policy transfer: Imagined return in hallucinated dream vs. verified return in real simulation across 20 generations.</em></p>
+</div>
+
+### 3. Pure Imagination: Driving Inside $M$'s Hallucinated Dream
+In **Dream Mode**, the physics simulation is halted completely after 4 warm-up steps. The car navigates purely within the recurrent memory dynamics ($M$: GRU + MDN + Reward Head), forecasting $\hat{z}_{t+1}$ and $\hat{r}_{t+1}$ which are decoded into visual frames by $V$:
+
+<div align="center">
+  <img src="assets/dream_race.gif" alt="Hallucinated Latent Dream Simulation" width="460"/>
+  <p><em>Closed-loop driving inside recurrent memory dynamics without physics engine queries.</em></p>
+</div>
+
+---
+
 ## Repository Structure
 
 ```
 WOM/
+├── assets/                   # README GIFs and visualization plots
+│   ├── car_race_inference.gif
+│   ├── learning_progression.gif
+│   ├── dream_race.gif
+│   └── learning_transfer_verdict.png
 ├── car_racer/
 │   ├── __init__.py           # Package exports
 │   ├── config.py             # Hyperparameters, constants, and paths
@@ -164,7 +220,15 @@ Renders an evaluation episode to disk with full telemetry overlay:
 uv run python run_demo.py --mode gif --track oval --gif-out outputs/car_race_demo.gif
 ```
 
-### 6. Zero-Shot Cross-Track Benchmark Suite
+### 6. Batch Showcase Media Export
+
+Batch-generates all README demonstration media assets (`car_race_inference.gif`, `learning_progression.gif`, `dream_race.gif`, and `learning_transfer_verdict.png`) directly into `assets/`:
+
+```bash
+uv run python run_demo.py --export-demos --track oval
+```
+
+### 7. Zero-Shot Cross-Track Benchmark Suite
 
 Evaluates the trained controller across all registered track topologies (`circle`, `oval`, `figure8`, `s_curve`) and outputs comparative returns, survival rates, and centerline errors:
 

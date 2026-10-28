@@ -338,6 +338,149 @@ def save_racing_gif(controller, vae, output_path, num_steps=120, seed=42, track=
     print(f"Saved racing GIF to {output_path} ({len(frames_pil)} frames, total score: {tot:.1f})")
 
 
+def save_learning_progression_gif(controller, vae, output_path, num_steps=90, seed=1001, track="circle"):
+    """
+    Renders a split-screen animation comparing:
+    Left: Gen 0 baseline (untrained, theta = 0)
+    Right: Gen 20 converged dream-trained controller
+    """
+    from PIL import Image, ImageDraw
+    env_un = MiniRacer(track=track, seed=seed)
+    env_tr = MiniRacer(track=track, seed=seed)
+    device = Config.DEVICE
+
+    c_untrained = Controller(params=np.zeros(51, dtype=np.float32))
+
+    obs_un = env_un.reset()
+    obs_tr = env_tr.reset()
+
+    frames_pil = []
+    tot_un = 0.0
+    tot_tr = 0.0
+    done_un = False
+    done_tr = False
+    last_un_frame = None
+
+    for step in range(1, num_steps + 1):
+        # Untrained agent step
+        if not done_un:
+            with torch.no_grad():
+                obs_t_un = torch.tensor(obs_un, dtype=torch.float32, device=device).unsqueeze(0)
+                z_un, _ = vae.encode(obs_t_un)
+                a_un = c_untrained.act(z_un)
+            obs_un, r_un, done_un, info_un = env_un.step(a_un)
+            tot_un += r_un
+            un_up = (np.repeat(np.repeat(obs_un, 12, axis=0), 12, axis=1) * 255).astype(np.uint8)
+            last_un_frame = un_up
+        else:
+            un_up = last_un_frame
+
+        # Dream-trained agent step
+        if not done_tr:
+            with torch.no_grad():
+                obs_t_tr = torch.tensor(obs_tr, dtype=torch.float32, device=device).unsqueeze(0)
+                z_tr, _ = vae.encode(obs_t_tr)
+                a_tr = controller.act(z_tr)
+            obs_tr, r_tr, done_tr, info_tr = env_tr.step(a_tr)
+            tot_tr += r_tr
+            tr_up = (np.repeat(np.repeat(obs_tr, 12, axis=0), 12, axis=1) * 255).astype(np.uint8)
+        else:
+            tr_up = (np.repeat(np.repeat(obs_tr, 12, axis=0), 12, axis=1) * 255).astype(np.uint8)
+
+        combined = np.concatenate([un_up, tr_up], axis=1)
+        pil_img = Image.fromarray(combined)
+        draw = ImageDraw.Draw(pil_img)
+
+        # Header HUD
+        panel_h = 75
+        draw.rectangle([0, 0, combined.shape[1], panel_h], fill=(20, 24, 28))
+
+        draw.text((10, 6), f"Mini World Models — Learning Progression ({track.upper()}) | Step {step}/{num_steps}", fill=(240, 240, 240))
+        status_un = f"Score: {tot_un:.1f}" if not done_un else f"CRASHED / OFF TRACK ({tot_un:.1f})"
+        draw.text((10, 30), "[Gen 0: Untrained Baseline]", fill=(240, 100, 100))
+        draw.text((10, 50), status_un, fill=(200, 200, 200))
+
+        status_tr = f"Score: {tot_tr:.1f} | Dev: {info_tr['d']:+.2f}"
+        draw.text((combined.shape[1] // 2 + 10, 30), "[Gen 20: Dream-Trained Policy]", fill=(100, 230, 140))
+        draw.text((combined.shape[1] // 2 + 10, 50), status_tr, fill=(255, 215, 0))
+
+        frames_pil.append(pil_img)
+        if done_un and done_tr:
+            break
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    frames_pil[0].save(
+        output_path,
+        save_all=True,
+        append_images=frames_pil[1:],
+        duration=40,
+        loop=0
+    )
+    print(f"Saved learning progression GIF to {output_path} ({len(frames_pil)} frames)")
+
+
+def save_dream_gif(mdn, vae, controller, output_path, start_seed=42, dream_steps=75):
+    """
+    Renders an animation of the car navigating inside M's hallucinated recurrent imagination.
+    """
+    from PIL import Image, ImageDraw
+    device = Config.DEVICE
+    env = MiniRacer(seed=start_seed)
+
+    # Collect 4 real steps to warm up GRU memory
+    warm_obs = []
+    warm_actions = []
+    obs = env.reset()
+    for _ in range(4):
+        a = 1
+        warm_obs.append(obs)
+        warm_actions.append(a)
+        obs, _, _, _ = env.step(a)
+
+    frames_pil = []
+    with torch.no_grad():
+        warm_obs_t = torch.tensor(np.array(warm_obs), dtype=torch.float32, device=device)
+        warm_z, _ = vae.encode(warm_obs_t)
+        warm_a1h = F.one_hot(torch.tensor(warm_actions, device=device), 3).float().unsqueeze(0)
+        _, _, _, _, h = mdn(warm_z.unsqueeze(0), warm_a1h, None)
+
+        z = warm_z[-1:].unsqueeze(0)
+        total_dream_r = 0.0
+
+        for t in range(dream_steps):
+            a = controller.act(z[0, 0])
+            ah = F.one_hot(torch.tensor([[a]], device=device), 3).float()
+            pi, mu, logsig, rhat, h = mdn(z, ah, h)
+            dream_r = float(rhat[0, 0].clamp(0, 1).item())
+            total_dream_r += dream_r
+
+            z = sample_mdn(pi[0, 0:1], mu[0, 0:1], logsig[0, 0:1], temperature=0.7).unsqueeze(1)
+            dream_frame = vae.decode(z.squeeze(1))[0].cpu().numpy()
+
+            dream_up = (np.repeat(np.repeat(dream_frame, 16, axis=0), 16, axis=1) * 255).clip(0, 255).astype(np.uint8)
+            pil_img = Image.fromarray(dream_up)
+            draw = ImageDraw.Draw(pil_img)
+
+            panel_h = 70
+            draw.rectangle([0, 0, dream_up.shape[1], panel_h], fill=(20, 24, 28))
+            draw.text((10, 6), "M's Hallucinated Dream (Recurrent Memory Rollout)", fill=(240, 200, 160))
+            draw.text((10, 28), f"Step: {t+1}/{dream_steps} | Return: {total_dream_r:.1f} | Pred Reward: {dream_r:+.2f}", fill=(255, 215, 0))
+            act_str = ACTION_NAMES.get(a, "UNKNOWN")
+            draw.text((10, 48), f"Controller Action: {act_str} | Zero physics engine calls", fill=(170, 215, 255))
+
+            frames_pil.append(pil_img)
+
+    os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    frames_pil[0].save(
+        output_path,
+        save_all=True,
+        append_images=frames_pil[1:],
+        duration=50,
+        loop=0
+    )
+    print(f"Saved dream GIF to {output_path} ({len(frames_pil)} frames, dream score: {total_dream_r:.1f})")
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Live Car Racing Viewer for Mini World Models")
     parser.add_argument("--mode", type=str, choices=["infer", "dream", "gif", "random"], default="infer",
